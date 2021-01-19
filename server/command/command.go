@@ -16,11 +16,13 @@ import (
 const (
 	helpTextHeader = "###### Mattermost Splunk Plugin - Slash command help\n"
 	helpText       = `
-* |/splunk help| - print this help message
-* |/splunk auth --login [server base url] [username] [password]| - log into the splunk server
-* |/splunk alert --subscribe| - subscribe to alerts
-* |/splunk logs --list| - list names of logs on server
-* |/splunk log [logname]| - show specific log from server
+* /splunk help - print this help message
+* /splunk auth --login [server base url] [username] [password] - log into the splunk server
+* /splunk auth --logout - log out from the splunk server
+* /splunk auth --user - show credentials of current splunk user
+* /splunk alert --subscribe - subscribe to alerts
+* /splunk log --list - list names of logs on server
+* /splunk log [logname] - show specific log from server
 `
 	autoCompleteDescription = ""
 	autoCompleteHint        = ""
@@ -89,6 +91,12 @@ func (c *command) help(_ ...string) (*model.CommandResponse, error) {
 }
 
 func (c *command) postCommandResponse(text string) *model.CommandResponse {
+	post := &model.Post{
+		ChannelId: c.args.ChannelId,
+		UserId:    c.splunk.BotUser(),
+		Message:   text,
+	}
+	_ = c.splunk.SendEphemeralPost(c.args.UserId, post)
 	return &model.CommandResponse{Text: text}
 }
 
@@ -249,16 +257,24 @@ func createMDForLogsList(results []string) string {
 }
 
 func (c *command) authUser(_ ...string) (*model.CommandResponse, error) {
-	return &model.CommandResponse{
-		Text: fmt.Sprintf("Server : %s\nUser : %s", c.splunk.User().ServerBaseURL, c.splunk.User().UserName),
-	}, nil
+	post := &model.Post{
+		ChannelId: c.args.ChannelId,
+		UserId:    c.splunk.BotUser(),
+		Message:   fmt.Sprintf("Server : %s\nUser : %s", c.splunk.User().ServerBaseURL, c.splunk.User().UserName),
+	}
+	_ = c.splunk.SendEphemeralPost(c.args.UserId, post)
+	return &model.CommandResponse{}, nil
 }
 
 func (c *command) authLogin(args ...string) (*model.CommandResponse, error) {
 	if len(args) != 3 {
-		return &model.CommandResponse{
-			Text: "Must have 3 arguments",
-		}, nil
+		post := &model.Post{
+			ChannelId: c.args.ChannelId,
+			UserId:    c.splunk.BotUser(),
+			Message:   "Must have 3 arguments",
+		}
+		_ = c.splunk.SendEphemeralPost(c.args.UserId, post)
+		return &model.CommandResponse{}, nil
 	}
 
 	c.splunk.ChangeUser(splunk.User{
@@ -269,17 +285,33 @@ func (c *command) authLogin(args ...string) (*model.CommandResponse, error) {
 
 	if err := c.splunk.Ping(); err != nil {
 		c.splunk.ChangeUser(splunk.User{})
-		return &model.CommandResponse{
-			Text: "Wrong credentials. Try again",
-		}, nil
+
+		post := &model.Post{
+			ChannelId: c.args.ChannelId,
+			UserId:    c.splunk.BotUser(),
+			Message:   "Wrong credentials. Try again",
+		}
+		_ = c.splunk.SendEphemeralPost(c.args.UserId, post)
+		return &model.CommandResponse{}, nil
 	}
 
-	return &model.CommandResponse{Text: "Successfully authenticated"}, nil
+	post := &model.Post{
+		ChannelId: c.args.ChannelId,
+		UserId:    c.splunk.BotUser(),
+		Message:   "Successfully authenticated",
+	}
+	_ = c.splunk.SendEphemeralPost(c.args.UserId, post)
+
+	return &model.CommandResponse{}, nil
 }
 
 func (c *command) authLogout(_ ...string) (*model.CommandResponse, error) {
 	c.splunk.ChangeUser(splunk.User{})
-	return &model.CommandResponse{
-		Text: "Successful logout",
-	}, nil
+	post := &model.Post{
+		ChannelId: c.args.ChannelId,
+		UserId:    c.splunk.BotUser(),
+		Message:   "Successful logout",
+	}
+	_ = c.splunk.SendEphemeralPost(c.args.UserId, post)
+	return &model.CommandResponse{}, nil
 }
